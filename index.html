@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>视频号下载</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <main class="max-w-xl mx-auto px-4 py-10">
+    <h1 class="text-3xl font-bold text-center text-gray-900">视频号下载</h1>
+    <p class="text-center text-gray-500 mt-2">粘贴微信视频号分享链接，解析后下载视频</p>
+
+    <div class="bg-white rounded-2xl shadow p-5 mt-8">
+      <label for="shareUrl" class="block text-sm font-medium text-gray-700 mb-2">视频分享链接</label>
+      <input
+        id="shareUrl"
+        type="url"
+        inputmode="url"
+        placeholder="https://weixin.qq.com/sph/xxxx"
+        class="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+      />
+      <button
+        id="parseBtn"
+        class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg py-3 text-base disabled:opacity-50"
+      >解析</button>
+      <p id="status" class="text-sm text-gray-500 mt-3 hidden"></p>
+      <div id="errorBox" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm"></div>
+    </div>
+
+    <div id="result" class="hidden bg-white rounded-2xl shadow p-5 mt-6">
+      <img id="cover" alt="视频封面" class="w-full rounded-xl object-cover max-h-72 hidden" />
+      <h2 id="title" class="font-semibold text-lg text-gray-900 mt-4"></h2>
+      <p class="text-sm text-gray-500 mt-1">
+        <span id="author"></span>
+        <span id="duration" class="ml-2"></span>
+      </p>
+      <div id="warnBox" class="hidden mt-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm"></div>
+      <a
+        id="downloadBtn"
+        href="#"
+        target="_blank"
+        rel="noopener"
+        class="block text-center w-full mt-5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg py-3"
+      >下载视频（MP4）</a>
+      <p class="text-xs text-gray-400 mt-3">如果点击后无法下载，可能是解析到的直链已失效，请重新复制分享链接再解析一次。</p>
+    </div>
+
+    <p class="text-xs text-gray-400 text-center mt-8">
+      仅供下载自己有权保存的视频。解析依赖第三方接口，若接口不可用会如实提示错误。
+    </p>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const shareUrl = $("shareUrl");
+    const parseBtn = $("parseBtn");
+    const statusEl = $("status");
+    const errorBox = $("errorBox");
+    const resultEl = $("result");
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove("hidden");
+      resultEl.classList.add("hidden");
+    }
+
+    parseBtn.addEventListener("click", async () => {
+      const url = shareUrl.value.trim();
+      if (!url) { showError("请先粘贴视频号分享链接。"); return; }
+      parseBtn.disabled = true;
+      parseBtn.textContent = "解析中…";
+      errorBox.classList.add("hidden");
+      resultEl.classList.add("hidden");
+      statusEl.textContent = "正在解析，请稍候…";
+      statusEl.classList.remove("hidden");
+      try {
+        const resp = await fetch("/api/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await resp.json();
+        statusEl.classList.add("hidden");
+        if (!data.ok) { showError(data.error || "解析失败，请稍后再试。"); return; }
+        $("title").textContent = data.title || "未命名视频";
+        $("author").textContent = data.author ? "作者：" + data.author : "";
+        $("duration").textContent = data.duration ? "时长：" + data.duration : "";
+        const cover = $("cover");
+        if (data.cover) { cover.src = data.cover; cover.classList.remove("hidden"); }
+        else { cover.classList.add("hidden"); }
+        const warnBox = $("warnBox");
+        if (data.warning) { warnBox.textContent = data.warning; warnBox.classList.remove("hidden"); }
+        else { warnBox.classList.add("hidden"); }
+        const dl = $("downloadBtn");
+        dl.href = data.videoUrl;
+        dl.setAttribute("download", "");
+        resultEl.classList.remove("hidden");
+      } catch (e) {
+        statusEl.classList.add("hidden");
+        showError("网络请求失败，请检查网络后重试。");
+      } finally {
+        parseBtn.disabled = false;
+        parseBtn.textContent = "解析";
+      }
+    });
+  </script>
+</body>
+</html>
